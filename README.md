@@ -13,6 +13,7 @@ In order to run this example yourself, you'll need to:
   - Use "http://localhost:8080/callback" as the redirect URI
 2. Set the SPOTIFY_ID environment variable to the client ID you got in step 1.
 3. Set the SPOTIFY_SECRET environment variable to the client secret from step 1.
+4. Set the CALLBACK_URL environment variable to "http://localhost:8080/callback"
 
 The app will on the first request to http://localhost:8080 will use an OAUTH kind of permission flow
 from you to use your account for searching songs.
