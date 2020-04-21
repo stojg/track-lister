@@ -51,36 +51,49 @@ func main() {
 			TokenType:   "bearer",
 		}
 
-		user := ""
+		fmt.Fprintln(w, "<p>Enter a spotify playlist URI like 'spotify:playlist:6fCOzHcpq7P25OZC8Mikxr'</p>")
 		playlist := spotify.ID("")
 		playlistID := r.FormValue("playlist")
 		if playlistID != "" {
 			parts := strings.Split(playlistID, ":")
-			user = parts[2]
-			playlist = spotify.ID(parts[4])
+			if len(parts) != 3 {
+				fmt.Fprintln(w, "<p style='font-weight:bold;color:#f44;'>Please use a Spotify URI like 'spotify:playlist:6fCOzHcpq7P25OZC8Mikxr'</p>")
+			}
+			playlist = spotify.ID(parts[2])
 		}
 
-		fmt.Fprintf(w, "<form><input name=\"playlist\" value=\"%s\" size=%d /><input type=\"submit\"></form>", playlistID, len(playlistID))
-		if user == "" || playlist == "" {
+		formSize := 40
+		if playlistID != "" && len(playlistID) > 40 {
+			formSize = len(playlistID)
+		}
+		fmt.Fprintf(w, "<p><form><input name=\"playlist\" value=\"%s\" size=%d /><input type=\"submit\"></form></p>", playlistID, formSize)
+		if playlist == "" {
 			return
 		}
 
+		log.Printf("Recieved request for playlist id %s", playlistID)
+
 		client := auth.NewClient(tok)
-		pl, err := client.GetPlaylist(user, playlist)
+		pl, err := client.GetPlaylist(playlist)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Fprintf(w, "<p style='font-weight:bold;color:#f44;'>Error: '%s'</p>", err)
+			log.Printf("Error: '%s'", err)
+			return
 		}
 
+		log.Printf("Found %d tunes\n", len(pl.Tracks.Tracks))
 		for _, track := range pl.Tracks.Tracks {
 			artist := track.Track.Artists[0].Name
 			trackName := track.Track.Name
 			view := fmt.Sprintf("%s - %s", artist, trackName)
 			query := strings.Replace(view, " ", "+", -1)
-			fmt.Fprintf(w, "%s <a href=\"https://www.beatport.com/search/tracks?q=%s\">beatport search</a><br>", view, query)
+			fmt.Fprintf(w, "%s <a href=\"https://www.beatport.com/search/tracks?q=%s\">beatport</a><br>", view, query)
 		}
-
 	})
+
 	go http.ListenAndServe(":8080", nil)
+
+	log.Println("Open a browser with http://localhost:8080/")
 
 	<-ch
 }
@@ -97,7 +110,6 @@ func completeAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// use the client to make calls that require authorization
-
 	fmt.Printf("%s", tok.Expiry)
 	cookie := http.Cookie{Name: "sp_token", Value: tok.AccessToken, Expires: tok.Expiry}
 	http.SetCookie(w, &cookie)
