@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
+
 	"github.com/zmb3/spotify"
 	"golang.org/x/oauth2"
-	"strings"
 )
 
 // redirectURI is the OAuth redirect URI for the application.
