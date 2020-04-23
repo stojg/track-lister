@@ -15,9 +15,11 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/zmb3/spotify"
 	"golang.org/x/oauth2"
+	"golang.org/x/time/rate"
 )
 
 // redirectURI is the OAuth redirect URI for the application.
@@ -26,9 +28,12 @@ import (
 const defaultRedirectURI = "http://localhost:8080/callback"
 
 var (
-	auth  spotify.Authenticator
-	ch    = make(chan *spotify.Client)
+	auth spotify.Authenticator
+	ch   = make(chan *spotify.Client)
+	// @todo csrf protection thing
 	state = "abc123"
+
+	limiter = rate.NewLimiter(2, 4)
 )
 
 func main() {
@@ -39,15 +44,51 @@ func main() {
 		auth = spotify.NewAuthenticator(defaultRedirectURI, spotify.ScopeUserReadPrivate)
 	}
 
-	http.HandleFunc("/", indexHandler)
-	http.HandleFunc("/callback", authHandler)
-	http.HandleFunc("/search", searchHandler)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", indexHandler)
+	mux.HandleFunc("/callback", authHandler)
+	mux.HandleFunc("/search", searchHandler)
 
-	go http.ListenAndServe(":8080", nil)
-
+	go http.ListenAndServe(":8080", logger(limit(mux)))
 	log.Println("listening on :8080")
 
 	<-ch
+}
+
+func limit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if limiter.Allow() == false {
+			http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+			addr := r.RemoteAddr
+			for _, headerKey := range []string{"X-FORWARDED-FOR"} {
+				if val := r.Header.Get(headerKey); len(val) > 0 {
+					addr = val
+					break
+				}
+			}
+			log.Printf("(%s) \"%s %s %s\" %s", addr, r.Method, r.RequestURI, r.Proto, "RateLimited")
+
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func logger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+
+		addr := r.RemoteAddr
+		for _, headerKey := range []string{"X-FORWARDED-FOR"} {
+			if val := r.Header.Get(headerKey); len(val) > 0 {
+				addr = val
+				break
+			}
+		}
+
+		log.Printf("(%s) \"%s %s %s\" %s", addr, r.Method, r.RequestURI, r.Proto, time.Since(start))
+	})
 }
 
 type pageData struct {
@@ -68,7 +109,9 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @todo make sure that the playlist GET param isn't crashing the app
 func searchHandler(w http.ResponseWriter, r *http.Request) {
+	// @todo make a simple rate limiter
 	oauthToken, err := r.Cookie("sp_token")
 	if err != nil && err != http.ErrNoCookie {
 		serverErrorHandler(w, err)
@@ -99,6 +142,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		PlaylistID: playlistID,
 	}
 
+	// Spotify ID The base-62 identifier that you can find at the end of the Spotify URI (see above) for an artist, track, album, playlist, etc. Unlike a Spotify URI, a Spotify ID does not clearly identify the type of resource; that information is provided elsewhere in the call.
 	playlist := spotify.ID("")
 	if playlistID != "" {
 		parts := strings.Split(playlistID, ":")
@@ -110,25 +154,22 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if playlist == "" {
-		writeTemplate(w, 401, "search.html", pd)
+		writeTemplate(w, http.StatusNotFound, "search.html", pd)
 		return
 	}
-
-	log.Printf("Received search request for playlist id %s", playlistID)
 
 	client := auth.NewClient(tok)
 	pl, err := client.GetPlaylist(playlist)
 	if err != nil {
 		pd.Warning = err.Error()
 	} else {
-		log.Printf("Found %d tunes\n", len(pl.Tracks.Tracks))
 
 		for _, track := range pl.Tracks.Tracks {
 			pd.Tracks = append(pd.Tracks, track.Track)
 		}
 	}
 
-	writeTemplate(w, 200, "search.html", pd)
+	writeTemplate(w, http.StatusOK, "search.html", pd)
 }
 
 func authHandler(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +184,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// use the client to make calls that require authorization
-	fmt.Printf("%s", tok.Expiry)
+	log.Printf("auth expiry %s", tok.Expiry)
 	cookie := http.Cookie{Name: "sp_token", Value: tok.AccessToken, Expires: tok.Expiry}
 	http.SetCookie(w, &cookie)
 
@@ -185,4 +226,14 @@ func serverErrorHandler(w http.ResponseWriter, err error) {
 		log.Printf("server error: %s\n", err)
 		return
 	}
+}
+
+// GetIP gets a requests IP address by reading off the forwarded-for
+// header (for proxies) and falls back to use the remote address.
+func getIP(r *http.Request) string {
+	forwarded := r.Header.Get("X-FORWARDED-FOR")
+	if forwarded != "" {
+		return forwarded
+	}
+	return r.RemoteAddr
 }
