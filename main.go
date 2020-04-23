@@ -22,17 +22,19 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// @todo parse album URI
+// @todo "playlist link" like https://open.spotify.com/playlist/37i9dQZF1DWUnhhRs5u3TO?si=ZoXAX5L6TYaIgqOow9LFVg
+// @todo "album link" like https://open.spotify.com/album/7yQ3jgoi8fLV4RnD83cqzo?si=yArIgxPKRMOzFHewvbyGlw
+
 // redirectURI is the OAuth redirect URI for the application.
-// You must register an application at Spotify's developer portal
-// and enter this value.
+// You must register an application at Spotify's developer portal and enter this value.
 const defaultRedirectURI = "http://localhost:8080/callback"
 
 var (
 	auth spotify.Authenticator
 	ch   = make(chan *spotify.Client)
 	// @todo csrf protection thing
-	state = "abc123"
-
+	state   = "abc123"
 	limiter = rate.NewLimiter(2, 4)
 )
 
@@ -109,9 +111,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @todo make sure that the playlist GET param isn't crashing the app
 func searchHandler(w http.ResponseWriter, r *http.Request) {
-	// @todo make a simple rate limiter
 	oauthToken, err := r.Cookie("sp_token")
 	if err != nil && err != http.ErrNoCookie {
 		serverErrorHandler(w, err)

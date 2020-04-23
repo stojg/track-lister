@@ -13,4 +13,5 @@ ENV ZONEINFO /zoneinfo.zip
 COPY --from=alpine /zoneinfo.zip /
 COPY --from=alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=golang /go/bin/app /app
+COPY --from=golang /go/src/app/vendor/github.com/stojg/track-lister/templates /templates
 ENTRYPOINT ["/app"]
