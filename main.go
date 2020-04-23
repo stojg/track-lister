@@ -13,6 +13,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -22,13 +23,17 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// @todo parse album URI
-// @todo "playlist link" like https://open.spotify.com/playlist/37i9dQZF1DWUnhhRs5u3TO?si=ZoXAX5L6TYaIgqOow9LFVg
-// @todo "album link" like https://open.spotify.com/album/7yQ3jgoi8fLV4RnD83cqzo?si=yArIgxPKRMOzFHewvbyGlw
-
 // redirectURI is the OAuth redirect URI for the application.
 // You must register an application at Spotify's developer portal and enter this value.
 const defaultRedirectURI = "http://localhost:8080/callback"
+
+type SearchType int
+
+const (
+	UnknownSearch SearchType = iota
+	PlaylistSearch
+	AlbumSearch
+)
 
 var (
 	auth spotify.Authenticator
@@ -132,40 +137,70 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	type searchData struct {
 		pageData
 		PlaylistID string
-		Tracks     []spotify.FullTrack
+		Tracks     []spotify.SimpleTrack
 	}
 
-	playlistID := r.FormValue("playlist")
-	playlistID = strings.TrimSpace(playlistID)
+	formValue := r.FormValue("playlist")
+	formValue = strings.TrimSpace(formValue)
+
 	pd := searchData{
 		pageData:   pageData{Title: "Search"},
-		PlaylistID: playlistID,
+		PlaylistID: formValue,
 	}
+
+	pd.Warning = "That did not looks like a valid search term"
 
 	// Spotify ID The base-62 identifier that you can find at the end of the Spotify URI (see above) for an artist, track, album, playlist, etc. Unlike a Spotify URI, a Spotify ID does not clearly identify the type of resource; that information is provided elsewhere in the call.
-	playlist := spotify.ID("")
-	if playlistID != "" {
-		parts := strings.Split(playlistID, ":")
-		if len(parts) != 3 {
-			pd.Warning = "That did not looks like a valid search term"
-		} else {
-			playlist = spotify.ID(parts[2])
-		}
+	id := spotify.ID("")
+	var searchType SearchType
+
+	if strings.Contains(strings.ToLower(formValue), "album") {
+		searchType = AlbumSearch
+	} else if strings.Contains(strings.ToLower(formValue), "playlist") {
+		searchType = PlaylistSearch
 	}
 
-	if playlist == "" {
-		writeTemplate(w, http.StatusNotFound, "search.html", pd)
-		return
+	if u, err := url.Parse(formValue); err == nil {
+		pd.Warning = ""
+		if u.Scheme == "spotify" {
+			parts := strings.Split(u.Opaque, ":")
+			if len(parts) != 2 {
+				pd.Warning = "That did not looks like a valid search term"
+			} else {
+				id = spotify.ID(parts[1])
+			}
+		} else if u.Scheme == "https" && u.Host == "open.spotify.com" {
+			parts := strings.Split(u.Path, "/")
+			if len(parts) < 3 {
+				pd.Warning = "That did not looks like a valid search term"
+			} else {
+				id = spotify.ID(parts[2])
+			}
+		}
+	} else {
+		log.Println("url parsing failed:", err)
 	}
 
 	client := auth.NewClient(tok)
-	pl, err := client.GetPlaylist(playlist)
-	if err != nil {
-		pd.Warning = err.Error()
-	} else {
-
-		for _, track := range pl.Tracks.Tracks {
-			pd.Tracks = append(pd.Tracks, track.Track)
+	if id == "" {
+		pd.Warning = "That did not looks like a valid search term"
+	} else if searchType == AlbumSearch {
+		pl, err := client.GetAlbum(id)
+		if err != nil {
+			pd.Warning = err.Error()
+		} else {
+			for _, track := range pl.Tracks.Tracks {
+				pd.Tracks = append(pd.Tracks, track)
+			}
+		}
+	} else if searchType == PlaylistSearch {
+		pl, err := client.GetPlaylist(id)
+		if err != nil {
+			pd.Warning = err.Error()
+		} else {
+			for _, track := range pl.Tracks.Tracks {
+				pd.Tracks = append(pd.Tracks, track.Track.SimpleTrack)
+			}
 		}
 	}
 
@@ -184,7 +219,7 @@ func authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// use the client to make calls that require authorization
-	log.Printf("auth expiry %s", tok.Expiry)
+	log.Printf("New auth expires %s", tok.Expiry)
 	cookie := http.Cookie{Name: "sp_token", Value: tok.AccessToken, Expires: tok.Expiry}
 	http.SetCookie(w, &cookie)
 
