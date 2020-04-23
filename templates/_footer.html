@@ -1,0 +1,8 @@
+            {{ if not . }}
+            {{ else if ne .Warning "" }}
+                <div class="error">{{ .Warning }}</div>
+            {{ end }}
+            </div>
+        </div>
+    </body>
+</html>

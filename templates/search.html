@@ -1,0 +1,23 @@
+{{ template "_header.html" . }}
+
+<form>
+    <div>
+        <label for="playlist">Spotify playlist URI</label><br />
+        <input name="playlist" value="{{ .PlaylistID }}" size="40" id="playlist"/>
+        <input type="submit" value="search" />
+    </div>
+    <div class="note">
+        example: spotify:playlist:37i9dQZF1DXaqIZ7YXxc6o
+    </div>
+</form>
+
+<div class="tracks">
+    {{ range $track := .Tracks }}
+        <div class="track">
+        {{ (index $track.Artists 0).Name }} - {{ $track.Name }}
+        <a href="https://www.beatport.com/search/tracks?q={{ (index $track.Artists 0).Name }}+{{ $track.Name }}">beatport</a>
+        </div>
+    {{ end }}
+</div>
+
+{{ template "_footer.html" . }}

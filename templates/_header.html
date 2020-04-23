@@ -1,0 +1,91 @@
+<html>
+<head>
+    <title>{{ .Title }}</title>
+    <style>
+        /*! minireset.css v0.0.6 | MIT License | github.com/jgthms/minireset.css */
+        html,body,p,ol,ul,li,dl,dt,dd,blockquote,figure,fieldset,legend,textarea,pre,iframe,hr,h1,h2,h3,h4,h5,h6{margin:0;padding:0}h1,h2,h3,h4,h5,h6{font-size:100%;font-weight:normal}ul{list-style:none}button,input,select,textarea{margin:0}html{box-sizing:border-box}*,*::before,*::after{box-sizing:inherit}img,video{height:auto;max-width:100%}iframe{border:0}table{border-collapse:collapse;border-spacing:0}td,th{padding:0}td:not([align]),th:not([align]){text-align:left}
+        body {
+            background: #191715;
+            font-family: sans-serif;
+            font-weight: 100;
+            font-size: 1.1em;
+        }
+        h1 {
+            font-size: 1.5em;
+            margin-bottom: 0.1em;
+        }
+        p, div {
+            margin: 0.1em 0 0 0.1em;
+        }
+        p {
+            margin-bottom: 1.2em;
+            line-height: 1.2em;
+        }
+        input {
+            font-size: 1.1em;
+            border: 1px solid #000;
+            padding: 0.3em;
+            font-family: sans-serif;
+            font-weight: 100;
+        }
+        input:focus {
+            outline: 1px solid #7888ff;
+        }
+        a:visited, a:active, a {
+            color: #7888ff;
+            text-decoration: none;
+        }
+        a:hover {
+            color: #8898ff;
+            text-decoration: underline;
+        }
+
+        #content {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #d2cece;
+        }
+        #header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #292725;
+            color: #d2cece;
+            border-bottom: 1px solid #343241;
+        }
+
+        .inner_content {
+            width: 80%;
+            padding: 10px;
+        }
+
+        #header a,
+        #header a:visited,
+        #header a:active,
+        #header a:hover {
+            color: #eeeeee;
+            text-decoration: none;
+        }
+
+        .note {
+            font-family: sans-serif;
+            font-size: 0.75em;
+
+        }
+
+        .error {
+            padding: 10px;
+            background-color: #f88;
+            border: 1px solid #f00;
+        }
+    </style>
+</head>
+    <body>
+        <div id="header">
+            <div class="inner_content">
+                <h1><a href="/">track lister</a></h1>
+            </div>
+        </div>
+        <div id="content">
+            <div class="inner_content">
