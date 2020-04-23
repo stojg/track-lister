@@ -148,9 +148,11 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		PlaylistID: formValue,
 	}
 
-	pd.Warning = "That did not looks like a valid search term"
+	if formValue == "" {
+		writeTemplate(w, http.StatusOK, "search.html", pd)
+		return
+	}
 
-	// Spotify ID The base-62 identifier that you can find at the end of the Spotify URI (see above) for an artist, track, album, playlist, etc. Unlike a Spotify URI, a Spotify ID does not clearly identify the type of resource; that information is provided elsewhere in the call.
 	id := spotify.ID("")
 	var searchType SearchType
 
@@ -161,19 +163,14 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if u, err := url.Parse(formValue); err == nil {
-		pd.Warning = ""
 		if u.Scheme == "spotify" {
 			parts := strings.Split(u.Opaque, ":")
-			if len(parts) != 2 {
-				pd.Warning = "That did not looks like a valid search term"
-			} else {
+			if len(parts) >= 2 {
 				id = spotify.ID(parts[1])
 			}
 		} else if u.Scheme == "https" && u.Host == "open.spotify.com" {
 			parts := strings.Split(u.Path, "/")
-			if len(parts) < 3 {
-				pd.Warning = "That did not looks like a valid search term"
-			} else {
+			if len(parts) >= 3 {
 				id = spotify.ID(parts[2])
 			}
 		}
@@ -181,10 +178,14 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("url parsing failed:", err)
 	}
 
-	client := auth.NewClient(tok)
-	if id == "" {
+	if id == "" || searchType == UnknownSearch {
 		pd.Warning = "That did not looks like a valid search term"
-	} else if searchType == AlbumSearch {
+		writeTemplate(w, http.StatusOK, "search.html", pd)
+		return
+	}
+
+	client := auth.NewClient(tok)
+	if searchType == AlbumSearch {
 		pl, err := client.GetAlbum(id)
 		if err != nil {
 			pd.Warning = err.Error()
